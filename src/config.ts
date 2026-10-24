@@ -22,6 +22,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     env.SOURCE_TIMEZONE?.trim() ||
     (username.toLowerCase() === "thsottiaux" ? "America/Los_Angeles" : undefined);
   return {
+    notifyAllPosts: toBoolean(env.NOTIFY_ALL_POSTS),
+    translateChinese: toBoolean(env.TRANSLATE_ZH),
+    smtpHost: env.SMTP_HOST?.trim(),
+    smtpPort: Number(env.SMTP_PORT || 465),
+    smtpSecure: toBoolean(env.SMTP_SECURE, true),
+    smtpUser: env.SMTP_USER?.trim(),
+    smtpPassword: env.SMTP_HOST?.trim() === "smtp.gmail.com"
+      ? env.SMTP_PASSWORD?.replace(/\s/g, "") : env.SMTP_PASSWORD,
     sourceProvider,
     timezone: env.TARGET_TIMEZONE?.trim() || "Asia/Shanghai",
     sourceTimezone,
@@ -41,7 +49,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     statePath: env.STATE_PATH?.trim() || "data/state.json",
     publicStatusPath: env.PUBLIC_STATUS_PATH?.trim() || undefined,
     resendApiKey: env.RESEND_API_KEY?.trim(),
-    emailFrom: env.EMAIL_FROM?.trim(),
+    emailFrom: env.EMAIL_FROM?.trim() || env.SMTP_USER?.trim(),
     emailTo: splitList(env.EMAIL_TO),
     twilioAccountSid: env.TWILIO_ACCOUNT_SID?.trim(),
     twilioAuthToken: env.TWILIO_AUTH_TOKEN?.trim(),
@@ -62,12 +70,16 @@ export function validateConfig(
     errors.push("X_USERNAME must be a valid X handle.");
   }
 
+  const smtpConfigured = Boolean(config.smtpHost);
   const emailPartiallyConfigured =
-    Boolean(config.resendApiKey || config.emailFrom || config.emailTo.length) &&
-    !(config.resendApiKey && config.emailFrom && config.emailTo.length);
+    Boolean(config.resendApiKey || config.emailFrom || config.emailTo.length || smtpConfigured) &&
+    !(config.emailFrom && config.emailTo.length &&
+      (smtpConfigured ? config.smtpUser && config.smtpPassword : config.resendApiKey));
   if (emailPartiallyConfigured) {
-    errors.push("Email requires RESEND_API_KEY, EMAIL_FROM, and EMAIL_TO.");
+    errors.push("Email requires EMAIL_FROM and EMAIL_TO, plus RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASSWORD.");
   }
+  if (smtpConfigured && (!Number.isInteger(config.smtpPort) || config.smtpPort! < 1 || config.smtpPort! > 65535))
+    errors.push("SMTP_PORT must be an integer between 1 and 65535.");
 
   const smsPartiallyConfigured =
     Boolean(

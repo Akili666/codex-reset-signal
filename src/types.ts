@@ -95,6 +95,13 @@ export type PublicStatus = {
 };
 
 export type AppConfig = {
+  notifyAllPosts?: boolean;
+  translateChinese?: boolean;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSecure?: boolean;
+  smtpUser?: string;
+  smtpPassword?: string;
   sourceProvider: "fxembed" | "x";
   timezone: string;
   sourceTimezone?: string;

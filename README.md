@@ -1,5 +1,7 @@
 # Codex Reset Signal
 
+> 本分支已配置为 **Tibo 全部新动态的中文邮件通知**：包含原创帖子与回复，保留英文原文、原帖链接和北京时间，使用 Gmail SMTP。首次运行只建立游标，不批量补发历史消息。[部署与运行说明](docs/personal-mail-deployment.zh-CN.md)
+
 **English** | [简体中文](README.zh-CN.md)
 
 [![CI](https://github.com/AllenXiao95/codex-reset-signal/actions/workflows/ci.yml/badge.svg)](https://github.com/AllenXiao95/codex-reset-signal/actions/workflows/ci.yml)

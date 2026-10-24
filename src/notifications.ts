@@ -1,7 +1,10 @@
 import { createHash, createHmac } from "node:crypto";
 import { appendFile } from "node:fs/promises";
+import nodemailer from "nodemailer";
 import type { AppConfig, PendingNotification, XPost } from "./types";
 import { formatTime, type ResetEvent } from "./events";
+import { translateToChinese } from "./translate";
+import { renderChineseEmail } from "./chinese-email";
 
 export type NotificationTarget = {
   id: string;
@@ -68,6 +71,7 @@ export function renderEmail(
 export function createTargets(
   config: AppConfig,
   fetcher: typeof fetch = fetch,
+  options: { sendSmtp?: (mail: { from: string; to: string; subject: string; html: string; text: string; messageId: string }) => Promise<void> } = {},
 ): NotificationTarget[] {
   const targets: NotificationTarget[] = [];
   const add = (
@@ -110,22 +114,62 @@ export function createTargets(
         "utf8",
       );
     });
+  const translatedMail = new Map<string, Promise<{ subject: string; html: string; text: string }>>();
+  const emailContent = (item: PendingNotification) => {
+    if (!translatedMail.has(item.key)) {
+      translatedMail.set(item.key, (async () => {
+        const result = config.translateChinese
+          ? renderChineseEmail({
+              username: config.username,
+              postUrl: item.post.url,
+              publishedAt: item.post.createdAt,
+              translatedText: await translateToChinese(item.post.text, fetcher),
+              originalText: item.post.text,
+              mediaUrls: item.post.media.map((media) => media.url || media.previewImageUrl).filter((url): url is string => Boolean(url)),
+            })
+          : { subject: `Reset Signal: @${config.username}`, html: renderEmail(item.post, config.username, config.keyword, item.events, config.timezone), text: renderText(item.post, item.events, config.timezone) };
+        if (item.key.startsWith("test-email:")) result.subject = "【部署测试】" + result.subject;
+        return result;
+      })());
+    }
+    return translatedMail.get(item.key)!;
+  };
+  const smtp = config.smtpHost && !options.sendSmtp ? nodemailer.createTransport({
+    host: config.smtpHost,
+    port: config.smtpPort || 465,
+    secure: config.smtpSecure ?? true,
+    auth: { user: config.smtpUser, pass: config.smtpPassword },
+    connectionTimeout: 20_000,
+    greetingTimeout: 20_000,
+    socketTimeout: 30_000,
+    logger: false,
+    debug: false,
+  }) : undefined;
   for (const recipient of config.emailTo)
     add("email", recipient, async (item) => {
+      const content = await emailContent(item);
+      if (config.smtpHost) {
+        const mail = {
+          from: config.emailFrom!, to: recipient, ...content,
+          messageId: `<${digest(`${item.key}:${recipient}`)}@${config.smtpUser?.split("@").at(-1)?.replace(/[^A-Za-z0-9.-]/g, "") || "tibo-mail.local"}>`,
+        };
+        try {
+          if (options.sendSmtp) await options.sendSmtp(mail);
+          else {
+            const result = await smtp!.sendMail(mail);
+            if (!result.accepted.length) throw new Error("SMTP recipient rejected");
+          }
+        } catch {
+          throw new Error("SMTP delivery failed; notification remains pending");
+        }
+        return;
+      }
       await request(
         "https://api.resend.com/emails",
         {
           from: config.emailFrom,
           to: [recipient],
-          subject: `Reset Signal: @${config.username}`,
-          html: renderEmail(
-            item.post,
-            config.username,
-            config.keyword,
-            item.events,
-            config.timezone,
-          ),
-          text: renderText(item.post, item.events, config.timezone),
+          ...content,
         },
         {
           Authorization: `Bearer ${config.resendApiKey}`,

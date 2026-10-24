@@ -1,7 +1,12 @@
-name: Monitor X for reset
+name: Tibo 中文邮件通知
 
 on:
   workflow_dispatch:
+    inputs:
+      send_test_email:
+        description: "发送一封最新真实帖子的中文测试邮件"
+        type: boolean
+        default: false
   schedule:
     - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
 
@@ -18,6 +23,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
+      NOTIFY_ALL_POSTS: "true"
+      TRANSLATE_ZH: "true"
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: "465"
+      SMTP_SECURE: "true"
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       SOURCE_PROVIDER: ${{ vars.SOURCE_PROVIDER || 'fxembed' }}
       X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
       X_USERNAME: ${{ vars.X_USERNAME || 'thsottiaux' }}
@@ -63,6 +75,9 @@ jobs:
       - name: Run monitor
         id: monitor
         run: npm run monitor
+      - name: Send Chinese test email
+        if: github.event_name == 'workflow_dispatch' && inputs.send_test_email
+        run: node --import tsx src/test-email.ts
       - name: Publish GitHub Actions summary
         if: always() && steps.monitor.outcome != 'skipped'
         run: node scripts/actions-summary.mjs

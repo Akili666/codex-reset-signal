@@ -179,20 +179,21 @@ async function runLocked(config: AppConfig, deps: Dependencies): Promise<Monitor
             ...state.matches,
           ].slice(0, 20);
         }
-        // Bootstrap still detects recent signals for the dashboard, but historical
-        // notifications remain opt-in to prevent a noisy first deployment.
-        if (
-          (!bootstrap || config.bootstrapNotify) &&
-          !state.outbox.some((item) => item.key === version)
-        ) {
-          state.outbox.push({
-            key: version,
-            post,
-            events,
-            targets: targets.map((target) => target.id),
-            delivered: [],
-          });
-        }
+      }
+      // All-post mode includes authored replies, even without reset keywords.
+      // The first run only establishes a cursor; old posts are not mass-mailed.
+      if (
+        (events.length > 0 || config.notifyAllPosts) &&
+        (!bootstrap || config.bootstrapNotify) &&
+        !state.outbox.some((item) => item.key === version)
+      ) {
+        state.outbox.push({
+          key: version,
+          post,
+          events,
+          targets: targets.map((target) => target.id),
+          delivered: [],
+        });
       }
     }
 
