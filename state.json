@@ -10,5 +10,6 @@
   "postsScanned": 0,
   "matches": [],
   "outbox": [],
-  "seen": {}
+  "seen": {},
+  "latestObservedPost": null
 }
