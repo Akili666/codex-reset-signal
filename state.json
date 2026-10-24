@@ -6,10 +6,11 @@
   "sinceId": null,
   "lastCheckedAt": null,
   "lastSuccessAt": null,
-  "lastRunStatus": "waiting-for-first-run",
+  "lastRunStatus": "failed-1",
   "postsScanned": 0,
   "matches": [],
   "outbox": [],
   "seen": {},
-  "latestObservedPost": null
+  "latestObservedPost": null,
+  "eventParserVersion": 5
 }
