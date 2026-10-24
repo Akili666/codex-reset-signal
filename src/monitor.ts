@@ -7,6 +7,7 @@ import { containsKeyword } from "./matcher";
 import { createTargets, type NotificationTarget } from "./notifications";
 import { readState, writeState } from "./state";
 import { createPostSource, type PostSource } from "./post-source";
+import { FxEmbedError } from "./fxembed-client";
 import {
   buildPublicStatus,
   writePublicFeed,
@@ -154,8 +155,10 @@ async function runLocked(config: AppConfig, deps: Dependencies): Promise<Monitor
       excludeReplies: config.excludeReplies,
       bootstrap,
     });
-  } catch {
-    errors.push(`${config.sourceProvider} collection failed; cursor not advanced`);
+  } catch (error) {
+    // Only this adapter's fixed, sanitized errors are safe for public Actions logs.
+    const detail = error instanceof FxEmbedError ? ` (${error.message})` : "";
+    errors.push(`${config.sourceProvider} collection failed; cursor not advanced${detail}`);
   }
 
   if (fetched) {

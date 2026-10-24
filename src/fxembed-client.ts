@@ -1,6 +1,8 @@
 import type { GetPostsOptions, PostSource } from "./post-source";
 import type { XMedia, XPost } from "./types";
 
+export class FxEmbedError extends Error {}
+
 type JsonObject = Record<string, unknown>;
 const object = (value: unknown): value is JsonObject =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -15,20 +17,20 @@ function normalizePost(raw: JsonObject, username: string): XPost {
   const text = object(raw.raw_text) && typeof raw.raw_text.text === "string"
     ? raw.raw_text.text : raw.text;
   if (!numericId(raw.id) || typeof text !== "string")
-    throw new Error("Invalid FxEmbed post");
+    throw new FxEmbedError("Invalid FxEmbed post");
   const timestamp = typeof raw.created_timestamp === "number"
     ? raw.created_timestamp * 1000
     : typeof raw.created_at === "string" ? Date.parse(raw.created_at) : NaN;
   const date = new Date(timestamp);
   if (!Number.isFinite(date.getTime()))
-    throw new Error("Invalid FxEmbed publication time");
+    throw new FxEmbedError("Invalid FxEmbed publication time");
   const media: XMedia[] = [];
   if (raw.media != null) {
     if (!object(raw.media) || (raw.media.all != null && !Array.isArray(raw.media.all)))
-      throw new Error("Invalid FxEmbed media");
+      throw new FxEmbedError("Invalid FxEmbed media");
     for (const [index, item] of ((raw.media.all ?? []) as unknown[]).entries()) {
       if (!object(item) || typeof item.type !== "string")
-        throw new Error("Invalid FxEmbed media item");
+        throw new FxEmbedError("Invalid FxEmbed media item");
       media.push({
         mediaKey: optionalString(item.id) ?? `${raw.id}_${index}`,
         type: item.type,
@@ -60,16 +62,16 @@ export class FxEmbedClient implements PostSource {
         headers: { Accept: "application/json", "User-Agent": "codex-reset-signal/1.1" },
       });
     } catch {
-      throw new Error("FxEmbed request failed");
+      throw new FxEmbedError("FxEmbed request failed");
     }
     // We deliberately do not use `since`: its 204 optimization only inspects
     // one upstream page. An unexpected 204 is not proof of an empty backlog.
-    if (response.status !== 200) throw new Error(`FxEmbed returned HTTP ${response.status}`);
+    if (response.status !== 200) throw new FxEmbedError(`FxEmbed returned HTTP ${response.status}`);
     let body: unknown;
     try { body = await response.json(); }
-    catch { throw new Error("Invalid FxEmbed JSON"); }
+    catch { throw new FxEmbedError("Invalid FxEmbed JSON"); }
     if (!object(body) || body.code !== 200 || body.stale === true || body.errors != null)
-      throw new Error("FxEmbed returned an unsuccessful or stale response");
+      throw new FxEmbedError("FxEmbed returned an unsuccessful or stale response");
     return body;
   }
 
@@ -80,7 +82,7 @@ export class FxEmbedClient implements PostSource {
     if (!object(body.user) || !numericId(body.user.id) ||
         typeof body.user.screen_name !== "string" ||
         body.user.screen_name.toLowerCase() !== username.toLowerCase())
-      throw new Error("Invalid FxEmbed user profile");
+      throw new FxEmbedError("Invalid FxEmbed user profile");
     return body.user.id;
   }
 
@@ -90,7 +92,7 @@ export class FxEmbedClient implements PostSource {
     latestObservedPost: XPost | null;
   }> {
     if (!numericId(options.userId) || (options.sinceId != null && !numericId(options.sinceId)))
-      throw new Error("Invalid FxEmbed checkpoint");
+      throw new FxEmbedError("Invalid FxEmbed checkpoint");
     const url = new URL(`https://api.fxtwitter.com/2/profile/id:${options.userId}/statuses`);
     url.searchParams.set("count", "100");
     if (!options.excludeReplies) url.searchParams.set("with_replies", "1");
@@ -102,12 +104,12 @@ export class FxEmbedClient implements PostSource {
       const body = await this.request(url);
       if (!Array.isArray(body.results) || !object(body.cursor) ||
           !(body.cursor.bottom == null || typeof body.cursor.bottom === "string"))
-        throw new Error("Invalid FxEmbed timeline");
+        throw new FxEmbedError("Invalid FxEmbed timeline");
       let pageNewest: string | null = null;
       for (const raw of body.results) {
         if (!object(raw) || raw.type !== "status" || !numericId(raw.id) ||
             !object(raw.author) || !numericId(raw.author.id))
-          throw new Error("Invalid FxEmbed timeline entry");
+          throw new FxEmbedError("Invalid FxEmbed timeline entry");
         // Include context authors in the page boundary. An old ancestor or a
         // pinned post alone must never terminate a page containing newer posts.
         if (!pageNewest || BigInt(raw.id) > BigInt(pageNewest)) pageNewest = raw.id;
@@ -131,10 +133,10 @@ export class FxEmbedClient implements PostSource {
       // Return only after the batch is complete; runMonitor commits atomically.
       if (options.bootstrap || reachedBoundary || !next)
         return { posts: [...posts.values()], newestId, latestObservedPost };
-      if (cursors.has(next)) throw new Error("FxEmbed pagination repeated; cursor not advanced");
+      if (cursors.has(next)) throw new FxEmbedError("FxEmbed pagination repeated; cursor not advanced");
       cursors.add(next);
       url.searchParams.set("cursor", next);
     }
-    throw new Error("FxEmbed pagination limit reached; cursor not advanced");
+    throw new FxEmbedError("FxEmbed pagination limit reached; cursor not advanced");
   }
 }
