@@ -1,6 +1,6 @@
 # Codex Reset Signal
 
-> 本分支已配置为 **Tibo 全部新动态的中文邮件通知**：包含原创帖子与回复，保留英文原文、原帖链接和北京时间，使用 Gmail SMTP。首次运行只建立游标，不批量补发历史消息。[部署与运行说明](docs/personal-mail-deployment.zh-CN.md)
+> 本分支支持 **Tibo 全部新动态的中文微信与邮件通知**：包含原创帖子与回复，保留英文原文、原帖链接和北京时间。邮件使用 Gmail SMTP，个人微信使用 PushPlus。首次运行只建立游标，不批量补发历史消息。[部署与运行说明](docs/personal-mail-deployment.zh-CN.md)
 
 **English** | [简体中文](README.zh-CN.md)
 

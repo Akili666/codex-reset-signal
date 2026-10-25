@@ -24,6 +24,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     notifyAllPosts: toBoolean(env.NOTIFY_ALL_POSTS),
     translateChinese: toBoolean(env.TRANSLATE_ZH),
+    pushplusToken: env.PUSHPLUS_TOKEN?.trim() || undefined,
     smtpHost: env.SMTP_HOST?.trim(),
     smtpPort: Number(env.SMTP_PORT || 465),
     smtpSecure: toBoolean(env.SMTP_SECURE, true),
@@ -132,10 +133,11 @@ export function validateConfig(
     !config.smsTo.length &&
     !config.telegramChatIds.length &&
     !config.discordWebhookUrls.length &&
-    !config.webhookUrls.length
+    !config.webhookUrls.length &&
+    !config.pushplusToken
   ) {
     errors.push(
-      "Configure at least one notification channel (GitHub Actions summary, email, SMS, Telegram, Discord, or webhook).",
+      "Configure at least one notification channel (GitHub Actions summary, email, PushPlus, SMS, Telegram, Discord, or webhook).",
     );
   }
 

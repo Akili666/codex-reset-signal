@@ -1,10 +1,14 @@
-name: Tibo 中文邮件通知
+name: Tibo 中文微信与邮件通知
 
 on:
   workflow_dispatch:
     inputs:
       send_test_email:
         description: "发送一封最新真实帖子的中文测试邮件"
+        type: boolean
+        default: false
+      send_test_pushplus:
+        description: "向自己的微信发送一条最新真实帖子的中文测试通知"
         type: boolean
         default: false
   schedule:
@@ -30,6 +34,7 @@ jobs:
       SMTP_SECURE: "true"
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
       SOURCE_PROVIDER: ${{ vars.SOURCE_PROVIDER || 'fxembed' }}
       X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
       X_USERNAME: ${{ vars.X_USERNAME || 'thsottiaux' }}
@@ -78,6 +83,9 @@ jobs:
       - name: Send Chinese test email
         if: github.event_name == 'workflow_dispatch' && inputs.send_test_email
         run: node --import tsx src/test-email.ts
+      - name: Send Chinese WeChat test notification
+        if: github.event_name == 'workflow_dispatch' && inputs.send_test_pushplus
+        run: node --import tsx src/test-pushplus.ts
       - name: Publish GitHub Actions summary
         if: always() && steps.monitor.outcome != 'skipped'
         run: node scripts/actions-summary.mjs

@@ -5,6 +5,7 @@ import type { AppConfig, PendingNotification, XPost } from "./types";
 import { formatTime, type ResetEvent } from "./events";
 import { translateToChinese } from "./translate";
 import { renderChineseEmail } from "./chinese-email";
+import { sendPushPlusMessage } from "./pushplus";
 
 export type NotificationTarget = {
   id: string;
@@ -114,10 +115,10 @@ export function createTargets(
         "utf8",
       );
     });
-  const translatedMail = new Map<string, Promise<{ subject: string; html: string; text: string }>>();
-  const emailContent = (item: PendingNotification) => {
-    if (!translatedMail.has(item.key)) {
-      translatedMail.set(item.key, (async () => {
+  const translatedContent = new Map<string, Promise<{ subject: string; html: string; text: string }>>();
+  const notificationContent = (item: PendingNotification) => {
+    if (!translatedContent.has(item.key)) {
+      translatedContent.set(item.key, (async () => {
         const result = config.translateChinese
           ? renderChineseEmail({
               username: config.username,
@@ -128,11 +129,11 @@ export function createTargets(
               mediaUrls: item.post.media.map((media) => media.url || media.previewImageUrl).filter((url): url is string => Boolean(url)),
             })
           : { subject: `Reset Signal: @${config.username}`, html: renderEmail(item.post, config.username, config.keyword, item.events, config.timezone), text: renderText(item.post, item.events, config.timezone) };
-        if (item.key.startsWith("test-email:")) result.subject = "【部署测试】" + result.subject;
+        if (item.key.startsWith("test-email:") || item.key.startsWith("test-pushplus:")) result.subject = "【部署测试】" + result.subject;
         return result;
       })());
     }
-    return translatedMail.get(item.key)!;
+    return translatedContent.get(item.key)!;
   };
   const smtp = config.smtpHost && !options.sendSmtp ? nodemailer.createTransport({
     host: config.smtpHost,
@@ -147,7 +148,7 @@ export function createTargets(
   }) : undefined;
   for (const recipient of config.emailTo)
     add("email", recipient, async (item) => {
-      const content = await emailContent(item);
+      const content = await notificationContent(item);
       if (config.smtpHost) {
         const mail = {
           from: config.emailFrom!, to: recipient, ...content,
@@ -176,6 +177,19 @@ export function createTargets(
           "Idempotency-Key": digest(`${item.key}:${recipient}`),
         },
       );
+    });
+  // Keep bursts below the free account's five requests per minute. Remaining
+  // items stay in the durable outbox for the next run; no accepted mail repeats.
+  let pushplusAttempts = 0;
+  if (config.pushplusToken)
+    add("pushplus", config.pushplusToken, async (item) => {
+      if (pushplusAttempts >= 4)
+        throw new Error("PushPlus burst limit reached; remaining notifications stay pending");
+      const content = await notificationContent(item);
+      pushplusAttempts += 1;
+      const html = content.html.length <= 19_000 ? content.html
+        : `<p>内容较长，以下为节选；完整内容请查看原帖。</p><pre style="white-space:pre-wrap">${escapeHtml(Array.from(content.text).slice(0, 2500).join(""))}…</pre><p>${escapeHtml(item.post.url)}</p>`;
+      await sendPushPlusMessage(config.pushplusToken!, { title: content.subject, html }, fetcher);
     });
   for (const recipient of config.smsTo)
     add("sms", recipient, async (item) => {
