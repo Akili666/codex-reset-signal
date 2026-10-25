@@ -25,6 +25,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     notifyAllPosts: toBoolean(env.NOTIFY_ALL_POSTS),
     translateChinese: toBoolean(env.TRANSLATE_ZH),
     pushplusToken: env.PUSHPLUS_TOKEN?.trim() || undefined,
+    emailEnabled: toBoolean(env.EMAIL_ENABLED, true),
     smtpHost: env.SMTP_HOST?.trim(),
     smtpPort: Number(env.SMTP_PORT || 465),
     smtpSecure: toBoolean(env.SMTP_SECURE, true),
@@ -76,10 +77,10 @@ export function validateConfig(
     Boolean(config.resendApiKey || config.emailFrom || config.emailTo.length || smtpConfigured) &&
     !(config.emailFrom && config.emailTo.length &&
       (smtpConfigured ? config.smtpUser && config.smtpPassword : config.resendApiKey));
-  if (emailPartiallyConfigured) {
+  if (config.emailEnabled !== false && emailPartiallyConfigured) {
     errors.push("Email requires EMAIL_FROM and EMAIL_TO, plus RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASSWORD.");
   }
-  if (smtpConfigured && (!Number.isInteger(config.smtpPort) || config.smtpPort! < 1 || config.smtpPort! > 65535))
+  if (config.emailEnabled !== false && smtpConfigured && (!Number.isInteger(config.smtpPort) || config.smtpPort! < 1 || config.smtpPort! > 65535))
     errors.push("SMTP_PORT must be an integer between 1 and 65535.");
 
   const smsPartiallyConfigured =
@@ -129,7 +130,7 @@ export function validateConfig(
   if (
     !options.offline &&
     !config.githubSummaryPath &&
-    !config.emailTo.length &&
+    !(config.emailEnabled !== false && config.emailTo.length) &&
     !config.smsTo.length &&
     !config.telegramChatIds.length &&
     !config.discordWebhookUrls.length &&

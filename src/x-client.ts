@@ -22,6 +22,8 @@ type RawPost = {
   note_tweet?: { text?: string };
   edit_history_tweet_ids?: string[];
   author_id?: string;
+  referenced_tweets?: { type: string; id: string }[];
+  in_reply_to_user_id?: string;
 };
 
 type RawPostsResponse = {
@@ -80,7 +82,7 @@ export class XClient {
     url.searchParams.set("max_results", "100");
     url.searchParams.set(
       "tweet.fields",
-      "attachments,created_at,note_tweet,text,author_id,edit_history_tweet_ids",
+      "attachments,created_at,note_tweet,text,author_id,edit_history_tweet_ids,referenced_tweets,in_reply_to_user_id",
     );
     url.searchParams.set("expansions", "attachments.media_keys");
     url.searchParams.set(
@@ -123,6 +125,8 @@ export class XClient {
             id: post.id,
             text: post.note_tweet?.text || post.text,
             createdAt: post.created_at ?? null,
+            postType: post.in_reply_to_user_id || post.referenced_tweets?.some((reference) => reference.type === "replied_to") ? "reply" : "original",
+            replyToPostId: post.referenced_tweets?.find((reference) => reference.type === "replied_to")?.id ?? null,
             url: `https://x.com/${options.username}/status/${post.id}`,
             media: (post.attachments?.media_keys ?? [])
               .map((key) => mediaByKey.get(key))

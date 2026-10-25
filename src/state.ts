@@ -2,6 +2,14 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { MatchRecord, MonitorState, XPost } from "./types";
 
+function postMetadata(raw: Record<string, unknown>): Pick<XPost, "postType" | "replyToUsername" | "replyToPostId"> {
+  return {
+    postType: raw.postType === "original" || raw.postType === "reply" ? raw.postType : "unknown",
+    replyToUsername: typeof raw.replyToUsername === "string" && /^[A-Za-z0-9_]{1,15}$/.test(raw.replyToUsername) ? raw.replyToUsername : null,
+    replyToPostId: typeof raw.replyToPostId === "string" && /^\d+$/.test(raw.replyToPostId) ? raw.replyToPostId : null,
+  };
+}
+
 export function emptyState(username: string, keyword: string): MonitorState {
   return {
     version: 2,
@@ -26,6 +34,7 @@ function migrateMatch(match: Record<string, unknown>): MatchRecord {
   const notifiedAt =
     typeof match.notifiedAt === "string" ? match.notifiedAt : undefined;
   return {
+    ...postMetadata(match),
     version:
       typeof match.version === "string"
         ? match.version
@@ -61,6 +70,7 @@ function migrateObservedPost(value: unknown): XPost | null {
   )
     return null;
   return {
+    ...postMetadata(raw),
     id: raw.id,
     canonicalId: typeof raw.canonicalId === "string" ? raw.canonicalId : undefined,
     text: raw.text,

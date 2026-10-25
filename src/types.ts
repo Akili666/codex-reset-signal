@@ -15,6 +15,10 @@ export type XPost = {
   url: string;
   media: XMedia[];
   canonicalId?: string;
+  /** Source metadata only; legacy or incomplete records stay unknown. */
+  postType?: "original" | "reply" | "unknown";
+  replyToUsername?: string | null;
+  replyToPostId?: string | null;
 };
 
 export type MatchRecord = {
@@ -103,6 +107,7 @@ export type AppConfig = {
   smtpUser?: string;
   smtpPassword?: string;
   pushplusToken?: string;
+  emailEnabled?: boolean;
   sourceProvider: "fxembed" | "x";
   timezone: string;
   sourceTimezone?: string;

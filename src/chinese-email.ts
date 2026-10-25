@@ -2,6 +2,10 @@ export interface ChineseEmailInput {
   username: string;
   postUrl: string;
   publishedAt: string | null;
+  notifiedAt?: string | null;
+  postType?: "original" | "reply" | "unknown";
+  replyToUsername?: string | null;
+  replyToPostId?: string | null;
   translatedText: string;
   originalText: string;
   mediaUrls?: string[];
@@ -37,37 +41,70 @@ function isSafeHttpsUrl(url: string): boolean {
   }
 }
 
-function formatBeijingTime(publishedAt: string | null): string {
-  if (publishedAt === null) return "发布时间未知";
-  const date = new Date(publishedAt);
-  if (Number.isNaN(date.getTime())) return "发布时间未知";
+function formatBeijingTime(value: string | null | undefined): string {
+  if (!value) return "未知";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "未知";
   const parts = new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
     year: "numeric",
-    month: "long",
-    day: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
-  }).format(date);
-  return `${parts}（北京时间）`;
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((part) => part.type === type)!.value;
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}（北京时间）`;
+}
+
+function notificationDelay(publishedAt: string | null, notifiedAt?: string | null): string {
+  if (!publishedAt || !notifiedAt) return "未知";
+  const elapsed = Date.parse(notifiedAt) - Date.parse(publishedAt);
+  if (!Number.isFinite(elapsed)) return "未知";
+  if (elapsed < 0) return "源时间晚于推送时间，无法计算";
+  let seconds = Math.floor(elapsed / 1000);
+  const result: string[] = [];
+  for (const [unit, size] of [["天", 86400], ["小时", 3600], ["分", 60]] as const) {
+    const amount = Math.floor(seconds / size);
+    if (amount) result.push(`${amount}${unit}`);
+    seconds %= size;
+  }
+  if (seconds || !result.length) result.push(`${seconds}秒`);
+  return result.join("");
 }
 
 export function renderChineseEmail(input: ChineseEmailInput): ChineseEmail {
   const username = sanitizeUsername(input.username);
-  const subject = `@${username} 发布了新帖（中文）`.replace(/[\r\n]+/g, " ").trim();
-
   const beijingTime = formatBeijingTime(input.publishedAt);
+  const notificationTime = formatBeijingTime(input.notifiedAt);
+  const kind = input.postType === "original" ? "原创帖" : input.postType === "reply" ? "回复" : "类型待确认";
+  const shortTime = beijingTime === "未知" ? "时间未知" : beijingTime.slice(5, 16);
+  const subject = `【${kind}】@${username} · ${shortTime}（中文）`.replace(/[\r\n]+/g, " ").trim();
+  const heading = `@${username} · ${kind}`;
+  const replyUsername = input.postType === "reply" && input.replyToUsername && /^[A-Za-z0-9_]{1,15}$/.test(input.replyToUsername) ? input.replyToUsername : null;
+  const replyUrl = input.postType === "reply" && input.replyToPostId && /^\d+$/.test(input.replyToPostId)
+    ? `https://x.com/${replyUsername ?? "i"}/status/${input.replyToPostId}` : null;
+  const replyLine = input.postType === "reply" ? `回复对象：${replyUsername ? `@${replyUsername}` : "来源未提供"}` : null;
   const hasValidPostUrl = isSafeHttpsUrl(input.postUrl);
   const safeMediaUrls = (input.mediaUrls ?? []).filter(isSafeHttpsUrl);
 
   const linkLineText = `原文链接：${input.postUrl}`;
-  const timeLineText = `发布时间：${beijingTime}`;
+  const timeLines = [
+    `发帖时间：${beijingTime}`,
+    `推送时间：${notificationTime}`,
+    `发帖至推送：${notificationDelay(input.publishedAt, input.notifiedAt)}`,
+  ];
   const translationHeader = "中文翻译（机器翻译）";
   const originalHeader = "英文原文";
 
   const text = [
-    `@${username} 发布了新帖`,
+    heading,
+    `动态类型：${kind}`,
+    ...(replyLine ? [replyLine] : []),
+    ...(replyUrl ? [`回复原帖：${replyUrl}`] : []),
+    ...timeLines,
     "",
     translationHeader,
     input.translatedText,
@@ -76,7 +113,6 @@ export function renderChineseEmail(input: ChineseEmailInput): ChineseEmail {
     input.originalText,
     "",
     linkLineText,
-    timeLineText,
   ].join("\n");
 
   const mediaHtml = safeMediaUrls.length
@@ -101,14 +137,19 @@ export function renderChineseEmail(input: ChineseEmailInput): ChineseEmail {
 </head>
 <body style="margin:0;padding:24px;background:#f5f5f5;font-family:-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;color:#1a1a1a;">
 <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;padding:24px;">
-<h2 style="margin:0 0 16px;">@${escapeHtml(username)} 发布了新帖</h2>
+<h2 style="margin:0 0 16px;">${escapeHtml(heading)}</h2>
+<div style="background:#f1f5f9;border-radius:8px;padding:12px;font-size:14px;line-height:1.7;">
+<strong>动态类型：${escapeHtml(kind)}</strong>
+${replyLine ? `<div>${escapeHtml(replyLine)}</div>` : ""}
+${replyUrl ? `<div><a href="${escapeHtml(replyUrl)}">查看被回复的原帖</a></div>` : ""}
+${timeLines.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
+</div>
 <h3 style="margin:16px 0 8px;">${escapeHtml(translationHeader)}</h3>
 <p style="white-space:pre-wrap;margin:0 0 16px;">${escapeHtml(input.translatedText)}</p>
 <h3 style="margin:16px 0 8px;">${escapeHtml(originalHeader)}</h3>
 <p style="white-space:pre-wrap;margin:0 0 16px;">${escapeHtml(input.originalText)}</p>
 ${mediaHtml}
 <p style="margin:16px 0 4px;">${linkHtml}</p>
-<p style="margin:4px 0;color:#666;">发布时间：${escapeHtml(beijingTime)}</p>
 </div>
 </body>
 </html>`;

@@ -72,7 +72,7 @@ export function renderEmail(
 export function createTargets(
   config: AppConfig,
   fetcher: typeof fetch = fetch,
-  options: { sendSmtp?: (mail: { from: string; to: string; subject: string; html: string; text: string; messageId: string }) => Promise<void> } = {},
+  options: { sendSmtp?: (mail: { from: string; to: string; subject: string; html: string; text: string; messageId: string }) => Promise<void>; now?: () => Date } = {},
 ): NotificationTarget[] {
   const targets: NotificationTarget[] = [];
   const add = (
@@ -125,6 +125,10 @@ export function createTargets(
               postUrl: item.post.url,
               publishedAt: item.post.createdAt,
               translatedText: await translateToChinese(item.post.text, fetcher),
+              notifiedAt: (options.now?.() ?? new Date()).toISOString(),
+              postType: item.post.postType,
+              replyToUsername: item.post.replyToUsername,
+              replyToPostId: item.post.replyToPostId,
               originalText: item.post.text,
               mediaUrls: item.post.media.map((media) => media.url || media.previewImageUrl).filter((url): url is string => Boolean(url)),
             })
@@ -135,7 +139,7 @@ export function createTargets(
     }
     return translatedContent.get(item.key)!;
   };
-  const smtp = config.smtpHost && !options.sendSmtp ? nodemailer.createTransport({
+  const smtp = config.emailEnabled !== false && config.smtpHost && !options.sendSmtp ? nodemailer.createTransport({
     host: config.smtpHost,
     port: config.smtpPort || 465,
     secure: config.smtpSecure ?? true,
@@ -146,7 +150,7 @@ export function createTargets(
     logger: false,
     debug: false,
   }) : undefined;
-  for (const recipient of config.emailTo)
+  for (const recipient of config.emailEnabled === false ? [] : config.emailTo)
     add("email", recipient, async (item) => {
       const content = await notificationContent(item);
       if (config.smtpHost) {

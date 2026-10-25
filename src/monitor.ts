@@ -136,6 +136,15 @@ async function runLocked(config: AppConfig, deps: Dependencies): Promise<Monitor
   const now = deps.now ?? (() => new Date());
   state.version = 2;
   state.outbox ??= [];
+  // Explicitly disabling email also retires old email-only checkpoints. Keep
+  // every other channel pending and preserve its original payload/delivery ID.
+  if (config.emailEnabled === false) {
+    state.outbox = state.outbox.map((item) => ({
+      ...item,
+      targets: item.targets.filter((id) => !id.startsWith("email:")),
+      delivered: item.delivered.filter((id) => !id.startsWith("email:")),
+    })).filter((item) => item.targets.some((id) => !item.delivered.includes(id)));
+  }
   state.seen ??= {};
   state.latestObservedPost ??= null;
   state.lastSuccessAt ??= state.lastCheckedAt;

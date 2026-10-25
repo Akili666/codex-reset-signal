@@ -1,12 +1,8 @@
-name: Tibo 中文微信与邮件通知
+name: Tibo 中文微信通知
 
 on:
   workflow_dispatch:
     inputs:
-      send_test_email:
-        description: "发送一封最新真实帖子的中文测试邮件"
-        type: boolean
-        default: false
       send_test_pushplus:
         description: "向自己的微信发送一条最新真实帖子的中文测试通知"
         type: boolean
@@ -29,11 +25,7 @@ jobs:
     env:
       NOTIFY_ALL_POSTS: "true"
       TRANSLATE_ZH: "true"
-      SMTP_HOST: smtp.gmail.com
-      SMTP_PORT: "465"
-      SMTP_SECURE: "true"
-      SMTP_USER: ${{ secrets.SMTP_USER }}
-      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      EMAIL_ENABLED: "false"
       PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
       SOURCE_PROVIDER: ${{ vars.SOURCE_PROVIDER || 'fxembed' }}
       X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
@@ -52,9 +44,6 @@ jobs:
       DISCORD_WEBHOOK_URLS: ${{ secrets.DISCORD_WEBHOOK_URLS }}
       WEBHOOK_URLS: ${{ secrets.WEBHOOK_URLS }}
       WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-      EMAIL_TO: ${{ secrets.EMAIL_TO }}
       TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
       TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
       TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
@@ -75,14 +64,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - name: Restore installed monitor dependencies
+        id: monitor-deps
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: monitor-deps-v1-${{ runner.os }}-${{ runner.arch }}-node22-${{ hashFiles('package-lock.json') }}
+      - name: Install monitor dependencies on cache miss
+        if: steps.monitor-deps.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --no-fund
       - name: Run monitor
         id: monitor
         run: npm run monitor
-      - name: Send Chinese test email
-        if: github.event_name == 'workflow_dispatch' && inputs.send_test_email
-        run: node --import tsx src/test-email.ts
       - name: Send Chinese WeChat test notification
         if: github.event_name == 'workflow_dispatch' && inputs.send_test_pushplus
         run: node --import tsx src/test-pushplus.ts

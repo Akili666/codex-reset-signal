@@ -25,6 +25,9 @@ function normalizePost(raw: JsonObject, username: string): XPost {
   if (!Number.isFinite(date.getTime()))
     throw new FxEmbedError("Invalid FxEmbed publication time");
   const media: XMedia[] = [];
+  const reply = object(raw.replying_to) ? raw.replying_to : null;
+  const isReply = reply !== null || (typeof raw.replying_to === "string" && raw.replying_to.length > 0);
+  const replyUsername = reply?.screen_name ?? (typeof raw.replying_to === "string" ? raw.replying_to : null);
   if (raw.media != null) {
     if (!object(raw.media) || (raw.media.all != null && !Array.isArray(raw.media.all)))
       throw new FxEmbedError("Invalid FxEmbed media");
@@ -47,6 +50,9 @@ function normalizePost(raw: JsonObject, username: string): XPost {
     createdAt: date.toISOString(),
     url: `https://x.com/${username}/status/${raw.id}`,
     media,
+    postType: isReply ? "reply" : raw.replying_to === null ? "original" : "unknown",
+    replyToUsername: typeof replyUsername === "string" && /^[A-Za-z0-9_]{1,15}$/.test(replyUsername) ? replyUsername : null,
+    replyToPostId: numericId(reply?.status) ? reply.status : null,
   };
 }
 

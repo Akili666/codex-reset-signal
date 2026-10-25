@@ -1,6 +1,6 @@
 # Codex Reset Signal
 
-> 本分支支持 **Tibo 全部新动态的中文微信与邮件通知**：包含原创帖子与回复，保留英文原文、原帖链接和北京时间。邮件使用 Gmail SMTP，个人微信使用 PushPlus。首次运行只建立游标，不批量补发历史消息。[部署与运行说明](docs/personal-mail-deployment.zh-CN.md)
+> 本部署通过 **PushPlus 向个人微信推送 Tibo 全部新动态**，标题区分“原创帖”和“回复”，回复显示对象；正文保留中文译文、英文原文、原帖链接，并分别标明北京时间的发帖时间、推送时间及延迟。邮件已关闭。首次运行只建立游标，不批量补发历史消息。[部署与运行说明](docs/personal-mail-deployment.zh-CN.md)
 
 **English** | [简体中文](README.zh-CN.md)
 
