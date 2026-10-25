@@ -19,7 +19,7 @@ describe("personal Cloudflare scheduler", () => {
     expect(url).toBe("https://api.github.com/repos/Akili666/codex-reset-signal/actions/workflows/monitor.yml/dispatches");
     expect(JSON.parse(request.body)).toEqual({ ref: "main" });
     expect(request.headers.Authorization).toBe("Bearer fake-test-only-token");
-    expect(request.signal).toBeInstanceOf(AbortSignal); expect(request.redirect).toBe("error");
+    expect(request.signal).toBeInstanceOf(AbortSignal); expect(request.redirect).toBe("manual");
     expect(JSON.stringify(log.mock.calls)).not.toContain("fake-test-only-token");
     expect(worker.fetch).toBeUndefined();
   });
@@ -45,5 +45,21 @@ describe("personal Cloudflare scheduler", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("fake-private-token-in-network-error")));
     vi.spyOn(console, "log").mockImplementation(() => {});
     await expect(worker.scheduled(cron, { ...configuration.vars, GITHUB_TOKEN: "fake-token" })).rejects.toThrow(/^GitHub workflow dispatch request failed or timed out$/);
+  });
+
+  it("rejects a redirect without following its destination or logging its body", async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response("fake-private-redirect-body", {
+      status: 302,
+      headers: { Location: "https://untrusted.example/collect" },
+    }));
+    vi.stubGlobal("fetch", fetcher);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(worker.scheduled(cron, { ...configuration.vars, GITHUB_TOKEN: "fake-secret" })).rejects.toThrow("HTTP 302");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0][1].redirect).toBe("manual");
+    expect(JSON.stringify(error.mock.calls)).not.toContain("fake-secret");
+    expect(JSON.stringify(error.mock.calls)).not.toContain("fake-private-redirect-body");
+    expect(JSON.stringify(error.mock.calls)).not.toContain("untrusted.example");
   });
 });

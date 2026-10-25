@@ -38,7 +38,8 @@ async function dispatchMonitor(env) {
       },
       body: JSON.stringify({ ref }),
       signal: AbortSignal.timeout(20_000),
-      redirect: "error",
+      // Workers supports manual/follow only; reject redirects via response.ok below.
+      redirect: "manual",
     });
   } catch {
     throw new Error("GitHub workflow dispatch request failed or timed out");
