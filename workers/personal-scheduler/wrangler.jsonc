@@ -1,0 +1,14 @@
+{
+  "name": "tibo-wechat-scheduler",
+  "main": "../scheduler/index.mjs",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": false,
+  "vars": {
+    "GITHUB_REPOSITORY": "Akili666/codex-reset-signal",
+    "GITHUB_WORKFLOW": "monitor.yml",
+    "GITHUB_REF": "main"
+  },
+  "triggers": {
+    "crons": ["2,7,12,17,22,27,32,37,42,47,52,57 * * * *"]
+  }
+}

@@ -25,17 +25,24 @@ async function dispatchMonitor(env) {
   validateRepository(repository);
 
   const url = `https://api.github.com/repos/${repository}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2026-03-10",
-      "User-Agent": "codex-reset-signal-scheduler",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ ref }),
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2026-03-10",
+        "User-Agent": "codex-reset-signal-scheduler",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ref }),
+      signal: AbortSignal.timeout(20_000),
+      redirect: "error",
+    });
+  } catch {
+    throw new Error("GitHub workflow dispatch request failed or timed out");
+  }
 
   const body = await response.text();
   if (!response.ok) {

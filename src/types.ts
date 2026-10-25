@@ -107,6 +107,7 @@ export type AppConfig = {
   smtpUser?: string;
   smtpPassword?: string;
   pushplusToken?: string;
+  pushplusRateStatePath?: string;
   emailEnabled?: boolean;
   sourceProvider: "fxembed" | "x";
   timezone: string;

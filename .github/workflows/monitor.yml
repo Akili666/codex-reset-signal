@@ -27,6 +27,7 @@ jobs:
       TRANSLATE_ZH: "true"
       EMAIL_ENABLED: "false"
       PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      PUSHPLUS_RATE_STATE_PATH: runtime/pushplus-rate.json
       SOURCE_PROVIDER: ${{ vars.SOURCE_PROVIDER || 'fxembed' }}
       X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
       X_USERNAME: ${{ vars.X_USERNAME || 'thsottiaux' }}
@@ -87,12 +88,13 @@ jobs:
         if: always() && steps.monitor.outcome != 'skipped'
         working-directory: runtime
         run: |
-          if [ -z "$(git status --porcelain -- state.json status.json feed.xml)" ]; then
+          if [ -z "$(git status --porcelain -- state.json status.json feed.xml pushplus-rate.json)" ]; then
             exit 0
           fi
           git config user.name "reset-signal[bot]"
           git config user.email "reset-signal[bot]@users.noreply.github.com"
           git add state.json status.json feed.xml
+          if [ -f pushplus-rate.json ]; then git add pushplus-rate.json; fi
           git commit -m "chore: update monitor runtime state"
           git pull --rebase origin monitor-state
           git push origin HEAD:monitor-state
@@ -105,4 +107,5 @@ jobs:
             runtime/state.json
             runtime/status.json
             runtime/feed.xml
+            runtime/pushplus-rate.json
           retention-days: 7

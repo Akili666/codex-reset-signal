@@ -18,5 +18,7 @@ state/
 *.lock.tmp
 data/state.json
 data/status.json
+data/pushplus-rate.json
+.wrangler/
 data/*.lock
 data/*.tmp

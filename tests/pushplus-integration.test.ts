@@ -46,15 +46,19 @@ describe("WeChat and email delivery", () => {
     expect(fetcher.mock.calls.filter(([url]) => String(url).includes("pushplus.plus"))).toHaveLength(2);
   });
 
-  it("defers a burst above four attempts and delivers only the pending WeChat items next run", async () => {
+  it("drains a burst within the same run while waiting for rate slots, and does not repeat accepted items", async () => {
     const cfg = await seededConfig();
     const posts = Array.from({ length: 6 }, (_, i) => ({ ...post, id: String(i + 2), url: `https://x.com/thsottiaux/status/${i + 2}` }));
     const source = { resolveUserId: vi.fn().mockResolvedValue("42"), getPosts: vi.fn().mockResolvedValue({ posts, newestId: "7" }) };
     const sendSmtp = vi.fn().mockResolvedValue(undefined);
     const fetcher = vi.fn<typeof fetch>(async (url) => String(url).includes("translate.googleapis.com") ? Response.json([[["新动态。"]]]) : Response.json({ code: 200, data: "receipt" }));
-    await expect(runMonitor(cfg, { source, targets: createTargets(cfg, fetcher, { sendSmtp }) })).rejects.toThrow("will retry");
+    let clock = 100_000;
+    const waits: number[] = [];
+    const pushplusRate = { now: () => clock, sleep: async (milliseconds: number) => { waits.push(milliseconds); clock += milliseconds; } };
+    const first = await runMonitor(cfg, { source, targets: createTargets(cfg, fetcher, { sendSmtp, pushplusRate }) });
+    expect(first.outbox).toEqual([]); expect(waits).toEqual([61_000]);
     expect(sendSmtp).toHaveBeenCalledTimes(6);
-    expect(fetcher.mock.calls.filter(([url]) => String(url).includes("pushplus.plus"))).toHaveLength(4);
+    expect(fetcher.mock.calls.filter(([url]) => String(url).includes("pushplus.plus"))).toHaveLength(6);
     source.getPosts.mockResolvedValue({ posts: [], newestId: null });
     const state = await runMonitor(cfg, { source, targets: createTargets(cfg, fetcher, { sendSmtp }) });
     expect(state.outbox).toEqual([]); expect(sendSmtp).toHaveBeenCalledTimes(6);

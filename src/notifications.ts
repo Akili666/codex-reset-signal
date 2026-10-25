@@ -6,6 +6,7 @@ import { formatTime, type ResetEvent } from "./events";
 import { translateToChinese } from "./translate";
 import { renderChineseEmail } from "./chinese-email";
 import { sendPushPlusMessage } from "./pushplus";
+import { PushPlusRateLimiter, type PushPlusRateOptions } from "./pushplus-rate-limit";
 
 export type NotificationTarget = {
   id: string;
@@ -72,7 +73,7 @@ export function renderEmail(
 export function createTargets(
   config: AppConfig,
   fetcher: typeof fetch = fetch,
-  options: { sendSmtp?: (mail: { from: string; to: string; subject: string; html: string; text: string; messageId: string }) => Promise<void>; now?: () => Date } = {},
+  options: { sendSmtp?: (mail: { from: string; to: string; subject: string; html: string; text: string; messageId: string }) => Promise<void>; now?: () => Date; pushplusRate?: Omit<PushPlusRateOptions, "checkpointPath"> } = {},
 ): NotificationTarget[] {
   const targets: NotificationTarget[] = [];
   const add = (
@@ -115,29 +116,28 @@ export function createTargets(
         "utf8",
       );
     });
-  const translatedContent = new Map<string, Promise<{ subject: string; html: string; text: string }>>();
-  const notificationContent = (item: PendingNotification) => {
-    if (!translatedContent.has(item.key)) {
-      translatedContent.set(item.key, (async () => {
-        const result = config.translateChinese
-          ? renderChineseEmail({
-              username: config.username,
-              postUrl: item.post.url,
-              publishedAt: item.post.createdAt,
-              translatedText: await translateToChinese(item.post.text, fetcher),
-              notifiedAt: (options.now?.() ?? new Date()).toISOString(),
-              postType: item.post.postType,
-              replyToUsername: item.post.replyToUsername,
-              replyToPostId: item.post.replyToPostId,
-              originalText: item.post.text,
-              mediaUrls: item.post.media.map((media) => media.url || media.previewImageUrl).filter((url): url is string => Boolean(url)),
-            })
-          : { subject: `Reset Signal: @${config.username}`, html: renderEmail(item.post, config.username, config.keyword, item.events, config.timezone), text: renderText(item.post, item.events, config.timezone) };
-        if (item.key.startsWith("test-email:") || item.key.startsWith("test-pushplus:")) result.subject = "【部署测试】" + result.subject;
-        return result;
-      })());
-    }
-    return translatedContent.get(item.key)!;
+  const translations = new Map<string, Promise<string>>();
+  const translatedText = (item: PendingNotification) => {
+    if (!translations.has(item.key)) translations.set(item.key, translateToChinese(item.post.text, fetcher));
+    return translations.get(item.key)!;
+  };
+  const notificationContent = async (item: PendingNotification) => {
+    const result = config.translateChinese
+      ? renderChineseEmail({
+          username: config.username,
+          postUrl: item.post.url,
+          publishedAt: item.post.createdAt,
+          translatedText: await translatedText(item),
+          notifiedAt: (options.now?.() ?? new Date()).toISOString(),
+          postType: item.post.postType,
+          replyToUsername: item.post.replyToUsername,
+          replyToPostId: item.post.replyToPostId,
+          originalText: item.post.text,
+          mediaUrls: item.post.media.map((media) => media.url || media.previewImageUrl).filter((url): url is string => Boolean(url)),
+        })
+      : { subject: `Reset Signal: @${config.username}`, html: renderEmail(item.post, config.username, config.keyword, item.events, config.timezone), text: renderText(item.post, item.events, config.timezone) };
+    if (item.key.startsWith("test-email:") || item.key.startsWith("test-pushplus:")) result.subject = "【部署测试】" + result.subject;
+    return result;
   };
   const smtp = config.emailEnabled !== false && config.smtpHost && !options.sendSmtp ? nodemailer.createTransport({
     host: config.smtpHost,
@@ -182,15 +182,18 @@ export function createTargets(
         },
       );
     });
-  // Keep bursts below the free account's five requests per minute. Remaining
-  // items stay in the durable outbox for the next run; no accepted mail repeats.
+  // Drain ordinary backlogs in this run, waiting for rate slots instead of
+  // depending on another scheduled trigger. Bound unusually large backlogs.
   let pushplusAttempts = 0;
+  const pushplusRate = new PushPlusRateLimiter({ checkpointPath: config.pushplusRateStatePath, ...options.pushplusRate });
   if (config.pushplusToken)
     add("pushplus", config.pushplusToken, async (item) => {
-      if (pushplusAttempts >= 4)
-        throw new Error("PushPlus burst limit reached; remaining notifications stay pending");
-      const content = await notificationContent(item);
+      if (pushplusAttempts >= 20)
+        throw new Error("PushPlus per-run budget reached; remaining notifications stay pending");
+      if (config.translateChinese) await translatedText(item);
+      await pushplusRate.acquire();
       pushplusAttempts += 1;
+      const content = await notificationContent(item);
       const html = content.html.length <= 19_000 ? content.html
         : `<p>内容较长，以下为节选；完整内容请查看原帖。</p><pre style="white-space:pre-wrap">${escapeHtml(Array.from(content.text).slice(0, 2500).join(""))}…</pre><p>${escapeHtml(item.post.url)}</p>`;
       await sendPushPlusMessage(config.pushplusToken!, { title: content.subject, html }, fetcher);
