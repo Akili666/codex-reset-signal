@@ -4,12 +4,15 @@
   "keyword": "reset",
   "userId": "1953337039510003712",
   "sinceId": "2114125878804545940",
-  "lastCheckedAt": "2026-10-25T00:25:04.850Z",
-  "lastSuccessAt": "2026-10-25T00:25:04.850Z",
+  "lastCheckedAt": "2026-10-25T00:38:29.720Z",
+  "lastSuccessAt": "2026-10-25T00:38:29.720Z",
   "lastRunStatus": "checked-0-posts",
   "postsScanned": 28,
   "matches": [
     {
+      "postType": "unknown",
+      "replyToUsername": null,
+      "replyToPostId": null,
       "version": "84e83973968a4c109d3e23f1603ecf6dbb16af8820693e625bd2006eebeccbfb",
       "id": "2113492187770175603",
       "text": "Day 18/ Decisions API is GA, OpenResponses joined the Linux Foundation, we shipped some performance improvements and Uber is going all-in on codex &amp; work. But yes… that’s a reset!",
@@ -34,6 +37,9 @@
       "channels": []
     },
     {
+      "postType": "unknown",
+      "replyToUsername": null,
+      "replyToPostId": null,
       "version": "2417cdb9e6c0e6c4846af3702c3c24fb721ec4961912d951745e526999497bd1",
       "id": "2113162277688070445",
       "text": "Day 17/ Bet you thought we forgot, but no, it’s reset day today.\n\nAlso good time to remind you to get Daybreak Blue access, it only takes 15 mins and you don’t want to have to do it in the middle of an incident.",
@@ -58,6 +64,9 @@
       "channels": []
     },
     {
+      "postType": "unknown",
+      "replyToUsername": null,
+      "replyToPostId": null,
       "version": "ed5d41aa8bfe4c73cc891ac09420b29bbe0115dd803c2ce9430be134be21cf44",
       "id": "2112798407928713717",
       "text": "@theo I demand a reset",
@@ -82,6 +91,9 @@
       "channels": []
     },
     {
+      "postType": "unknown",
+      "replyToUsername": null,
+      "replyToPostId": null,
       "version": "4d9af2b3bec9bb61cf8d47e37ee68ba3439228225d37ef8a38314cc8826cac0b",
       "id": "2112432076767289678",
       "text": "Day 15/ Nevermind, we're still cooking... and reset. Enjoy.",
@@ -143,7 +155,10 @@
     "text": "@mitsuhiko I doubt they are on twitter",
     "createdAt": "2026-10-24T22:44:22.000Z",
     "url": "https://x.com/thsottiaux/status/2114125878804545940",
-    "media": []
+    "media": [],
+    "postType": "reply",
+    "replyToUsername": "mitsuhiko",
+    "replyToPostId": "2114067071986250067"
   },
   "eventParserVersion": 5
 }
